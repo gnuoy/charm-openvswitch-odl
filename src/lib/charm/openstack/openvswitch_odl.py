@@ -1,14 +1,12 @@
+import socket
 import subprocess
 
-import socket
-
-import charm.openstack.ODL as ODL
-import charm.openstack.PCIDev as PCIDev
-import charm.openstack.ovs as ovs
-
-import charms_openstack.charm
 import charmhelpers.core.hookenv as hookenv
 import charmhelpers.contrib.network.ip as ch_ip
+import charms_openstack.charm
+import charms_openstack.sdn.odl as odl
+import charms_openstack.sdn.ovs as ovs
+import charms_openstack.devices.pci as pci
 
 
 class OVSODLCharm(charms_openstack.charm.OpenStackCharm):
@@ -70,9 +68,9 @@ class OVSODLCharm(charms_openstack.charm.OpenStackCharm):
 
     def odl_node_registration(self, controller):
         """ Register node with ODL if not registered already """
-        odl = ODL.ODLConfig(**controller.connection())
+        odl_conn = odl.ODLConfig(**controller.connection())
         device_name = socket.gethostname()
-        if odl.is_device_registered(device_name):
+        if odl_conn.is_device_registered(device_name):
             hookenv.log('{} is already registered in odl'.format(device_name))
         else:
             local_ip = ch_ip.get_address_in_network(
@@ -80,49 +78,25 @@ class OVSODLCharm(charms_openstack.charm.OpenStackCharm):
                 hookenv.unit_private_ip())
             hookenv.log('Registering {} ({}) in odl'.format(
                         device_name, local_ip))
-            odl.odl_register_node(device_name, local_ip)
+            odl_conn.odl_register_node(device_name, local_ip)
 
     def odl_register_macs(self, controller):
         """ Register local interfaces and their networks with ODL """
         hookenv.log('Looking for macs to register with networks in odl')
-        odl = ODL.ODLConfig(**controller.connection())
+        odl_conn = odl.ODLConfig(**controller.connection())
         device_name = socket.gethostname()
-        requested_config = PCIDev.PCIInfo()['local_config']
+        requested_config = pci.PCIInfo()['local_config']
         for mac in requested_config.keys():
             for requested_net in requested_config[mac]:
                 net = requested_net['net']
                 interface = requested_net['interface']
-                if not odl.is_net_device_registered(net, device_name,
-                                                    interface, mac,
-                                                    device_type='ovs'):
+                if not odl_conn.is_net_device_registered(net, device_name,
+                                                         interface, mac,
+                                                         device_type='ovs'):
                     hookenv.log('Registering {} and {} on '
                                 '{}'.format(net, interface, mac))
-                    odl.odl_register_macs(device_name, net, interface, mac,
-                                          device_type='ovs')
+                    odl_conn.odl_register_macs(device_name, net, interface,
+                                               mac, device_type='ovs')
                 else:
                     hookenv.log('{} already registered for {} on '
                                 '{}'.format(net, interface, device_name))
-
-
-def install():
-    OVSODLCharm.singleton.install()
-
-
-def configure_openvswitch(odl_ovsdb):
-    OVSODLCharm.singleton.configure_openvswitch(odl_ovsdb)
-
-
-def unconfigure_openvswitch(odl_ovsdb):
-    OVSODLCharm.singleton.unconfigure_openvswitch(odl_ovsdb)
-
-
-def configure_plugin(neutron_plugin):
-    OVSODLCharm.singleton.configure_neutron_plugin(neutron_plugin)
-
-
-def register_node(controller):
-    OVSODLCharm.singleton.odl_node_registration(controller)
-
-
-def register_macs(controller):
-    OVSODLCharm.singleton.odl_register_macs(controller)

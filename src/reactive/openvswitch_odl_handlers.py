@@ -12,51 +12,43 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import charms_openstack.charm as charm
 import charms.reactive as reactive
 
 # This charm's library contains all of the handler code associated with
 # aodh
-import charm.openstack.openvswitch_odl as ovs_odl
-
-
-# Minimal inferfaces required for operation
-MINIMAL_INTERFACES = [
-    'ovsdb-manager.access.available',
-    'ovsdb-manager.connected',
-    'controller-api.access.available',
-]
-
-
-@reactive.when_not('charm.installed')
-def install_packages():
-    ovs_odl.install()
-    reactive.set_state('charm.installed')
+import charm.openstack.openvswitch_odl as ovs_odl  # noqa
 
 
 @reactive.when('charm.installed')
 @reactive.when('ovsdb-manager.access.available')
 def configure_openvswitch(odl_ovsdb):
-    ovs_odl.configure_openvswitch(odl_ovsdb)
+    with charm.provide_charm_instance() as ovs_odl_charm:
+        ovs_odl_charm.configure_openvswitch(odl_ovsdb)
     reactive.set_state('ovs.configured')
 
 
 @reactive.when('ovs.configured')
 @reactive.when_not('ovsdb-manager.access.available')
 def unconfigure_openvswitch(odl_ovsdb=None):
-    ovs_odl.unconfigure_openvswitch(odl_ovsdb)
+    with charm.provide_charm_instance() as ovs_odl_charm:
+        ovs_odl_charm.unconfigure_openvswitch(odl_ovsdb)
     reactive.remove_state('ovs.configured')
 
 
 @reactive.when('neutron-plugin.connected')
 def configure_neutron_plugin(neutron_plugin):
-    ovs_odl.configure_plugin(neutron_plugin)
+    with charm.provide_charm_instance() as ovs_odl_charm:
+        ovs_odl_charm.configure_neutron_plugin(neutron_plugin)
 
 
 @reactive.when('controller-api.access.available')
 def odl_node_registration(controller):
-    ovs_odl.register_node(controller)
+    with charm.provide_charm_instance() as ovs_odl_charm:
+        ovs_odl_charm.register_node(controller)
 
 
 @reactive.when('controller-api.access.available')
 def odl_mac_registration(controller):
-    ovs_odl.register_macs(controller)
+    with charm.provide_charm_instance() as ovs_odl_charm:
+        ovs_odl_charm.register_macs(controller)
